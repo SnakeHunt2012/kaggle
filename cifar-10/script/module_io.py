@@ -1,6 +1,7 @@
 """
 Module I/O
 """
+import os
 import ConfigParser
 import csv
 
@@ -8,7 +9,7 @@ import csv
 # Global Constant #
 ###################
 
-root_dir = "/home/snakehunt2012/laboratory/object-recognition-dev"
+root_dir = os.getcwd() + "/.." 
 config_dir = root_dir + "/" + "config"
 global_config_path = config_dir + "/" + "global.cfg"
 develop_config_path = config_dir + "/" + "develop.cfg"

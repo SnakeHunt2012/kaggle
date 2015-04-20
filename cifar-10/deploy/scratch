@@ -1,0 +1,3 @@
+./add-develop.sh config/0002552_20_5_0001_tanh.cfg 10.101.165.148 0002552_20_5_0001_tanh
+lrtvjm 10.101.165.148
+pssh -h ip.list -v -P -t 0 -o stdout.d -e stderr.d ""
