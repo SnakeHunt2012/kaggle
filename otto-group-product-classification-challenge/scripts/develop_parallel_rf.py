@@ -90,6 +90,8 @@ def train_validate_test(parameter_dict, X_train, X_validate, y_train, y_validate
                                                       min_samples_split=parameter_dict["min_samples_split"],
                                                       min_samples_leaf=parameter_dict["min_samples_leaf"],
                                                       max_leaf_nodes=parameter_dict["max_leaf_nodes"],
+                                                      min_weight_fraction_leaf=parameter_dict["min_weight_fraction_leaf"],
+                                                      max_leaf_nodes=parameter_dict["max_leaf_nodes"],
                                                       bootstrap=parameter_dict["bootstrap"],
                                                       oob_score=parameter_dict["oob_score"],
                                                       n_jobs=parameter_dict["n_jobs"],
@@ -126,38 +128,35 @@ def train_validate_test(parameter_dict, X_train, X_validate, y_train, y_validate
     info_dict["logloss_train"] = logloss_train
     info_dict["logloss_validate"] = logloss_validate
     
-    #make_submission(random_forest_classifier, encoder, info_dict)
+    make_submission(random_forest_classifier, encoder, info_dict)
 
     return info_dict
     
 def develop():
 
-    criterion_list = ["gini", "entropy"]
-    max_depth_list = [25, 35]
     min_samples_split_list = [10, 20, 30]
     min_samples_leaf_list = [5, 10, 15, 20]
+    min_weight_fraction_leaf_list = [None]
+    max_leaf_nodes_list = [None]
 
     parameter_dict_list = []
-    for criterion in criterion_list:
-        for max_depth in max_depth_list:
-            for min_samples_split in min_samples_split_list:
-                for min_samples_leaf in min_samples_leaf_list:
-                    parameter_dict = OrderedDict()
-                    
-                    parameter_dict["n_estimators"] = 200
-                    parameter_dict["criterion"] = criterion # tuning
-                    parameter_dict["max_features"] = "log2"
-                    parameter_dict["max_depth"] = max_depth # tuning
-                    parameter_dict["min_samples_split"] = min_samples_split # tuning
-                    parameter_dict["min_samples_leaf"] = min_samples_leaf   # tuning
-                    parameter_dict["max_leaf_nodes"] = None
-                    parameter_dict["bootstrap"] = True
-                    parameter_dict["oob_score"] = True
-                    parameter_dict["n_jobs"] = -1
-                    parameter_dict["random_state"] = None
-                    parameter_dict["verbose"] = 0
-    
-                    parameter_dict_list.append(parameter_dict)
+    for min_samples_split in min_samples_split_list:
+        for min_samples_leaf in min_samples_leaf_list:
+            parameter_dict = OrderedDict()
+            parameter_dict["n_estimators"] = 200
+            parameter_dict["criterion"] = "gini"
+            parameter_dict["max_features"] = "log2"
+            parameter_dict["max_depth"] = None
+            parameter_dict["min_samples_split"] = min_samples_split  # tuning
+            parameter_dict["min_samples_leaf"] = min_samples_leaf    # tuning
+            #parameter_dict["min_weight_fraction_leaf"] = min_weight_fraction_leaf  # tuning
+            #parameter_dict["max_leaf_nodes"] = max_leaf_nodes # tuning
+            parameter_dict["bootstrap"] = True
+            parameter_dict["oob_score"] = True
+            parameter_dict["n_jobs"] = -1
+            parameter_dict["random_state"] = None
+            parameter_dict["verbose"] = 0
+            parameter_dict_list.append(parameter_dict)
 
     print "loading training data ..."
     X_train, X_validate, y_train, y_validate = load_train_data()

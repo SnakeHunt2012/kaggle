@@ -25,8 +25,8 @@ def merge_submission(submission_list):
 def dump_submission(X):
 
     label_list = ["Class_%d" % i for i in range(1, 10)]
-    timestamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime(time.time()))
-    path = "../data/submission_merge_%s.csv" % timestamp
+    timestamp = time.strftime("[%Y-%m-%d]_[%H-%M-%S]", time.localtime(time.time()))
+    path = "../sandbox/submission_merge_%s.csv" % timestamp
     print "dumping submission %s ..." % path
     with open(path, 'w') as fp:
         fp.write("id,")
@@ -41,11 +41,10 @@ def dump_submission(X):
 
 def main():
 
-    X_1 = load_submission("../data/submission_rf_2015-03-30_15-12-04.csv")
-    X_2 = load_submission("../data/submission_svm.csv")
+    X_1 = load_submission("../sandbox/submission_rf_[2015-04-26]_[15-13-13]_[6200].csv")
+    X_2 = load_submission("../sandbox/submission_svm_[2015-04-30]_[00-21-32]_[6323].csv")
     X_merge = merge_submission([X_1, X_2])
     dump_submission(X_merge)
-    pass
 
 
 if __name__ == "__main__":

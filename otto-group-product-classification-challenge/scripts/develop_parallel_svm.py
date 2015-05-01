@@ -73,13 +73,13 @@ def make_submission(classifier, encoder, scaler, info_dict, path=""):
     timestamp += "[%d]" % os.getpid()
     
     print "dumping info_dict ..."
-    path = "../data/submission_svm_standard_scaler_%s.json" % timestamp
+    path = "../data/submission_svm_%s.json" % timestamp
     with open(path, 'w') as fp:
         json.dump(info_dict, fp, indent=4)
     print "info_dict dumped."
 
     print "dumping submission file ..."
-    path = "../data/submission_svm_standard_scaler_%s.csv" % timestamp
+    path = "../data/submission_svm_%s.csv" % timestamp
     with open(path, 'w') as fp:
         fp.write("id,")
         fp.write(",".join(encoder.classes_))
@@ -137,35 +137,33 @@ def train_validate_test(parameter_dict, X_train, X_validate, y_train, y_validate
     make_submission(classifier, encoder, scaler, info_dict)
 
     return info_dict
-    
+
 def develop():
 
-    C_list = [0.4, 0.6]
-    kernel_list = ["poly", "rbf"]
-    degree_list = [2, 4]
+    C_list = [1.0, 2.0, 3.0]
+    gamma_list = [0.001, 0.005, 0.009]
 
     parameter_dict_list = []
     for C in C_list:
-        for kernel in kernel_list:
-            for degree in degree_list:
-                parameter_dict = OrderedDict()
-                
-                parameter_dict["C"] = C
-                parameter_dict["kernel"] = kernel
-                parameter_dict["degree"] = degree
-                parameter_dict["gamma"] = 0.0
-                parameter_dict["coef0"] = 0.0
-                parameter_dict["probability"] = True
-                parameter_dict["shrinking"] = True
-                parameter_dict["tol"] = 1e-10
-                parameter_dict["cache_size"] = 1024
-                parameter_dict["class_weight"] = "auto"
-                parameter_dict["verbose"] = 1
-                parameter_dict["max_iter"] = -1
-                parameter_dict["random_state"] = None
+        for gamma in gamma_list:
+            parameter_dict = OrderedDict()
 
-                parameter_dict_list.append(parameter_dict)
-                    
+            parameter_dict["C"] = C          # tunning parameter
+            parameter_dict["kernel"] = "rbf"
+            parameter_dict["degree"] = 3
+            parameter_dict["gamma"] = gamma  # tunning parameter
+            parameter_dict["coef0"] = 0.0
+            parameter_dict["probability"] = True
+            parameter_dict["shrinking"] = True
+            parameter_dict["tol"] = 1e-10
+            parameter_dict["cache_size"] = 1024
+            parameter_dict["class_weight"] = "auto"
+            parameter_dict["verbose"] = 1
+            parameter_dict["max_iter"] = -1
+            parameter_dict["random_state"] = None
+
+            parameter_dict_list.append(parameter_dict)
+
     print "loading training data ..."
     X_train, X_validate, y_train, y_validate, scaler = load_train_data()
     print "training data loaded."

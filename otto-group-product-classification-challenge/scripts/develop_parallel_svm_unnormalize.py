@@ -72,13 +72,13 @@ def make_submission(classifier, encoder, mu, sigma, info_dict, path=""):
     timestamp += "[%d]" % os.getpid()
     
     print "dumping info_dict ..."
-    path = "../data/submission_svm_%s.json" % timestamp
+    path = "../data/submission_svm_unnormalize_%s.json" % timestamp
     with open(path, 'w') as fp:
         json.dump(info_dict, fp, indent=4)
     print "info_dict dumped."
 
     print "dumping submission file ..."
-    path = "../data/submission_svm_%s.csv" % timestamp
+    path = "../data/submission_svm_unnormalize_%s.csv" % timestamp
     with open(path, 'w') as fp:
         fp.write("id,")
         fp.write(",".join(encoder.classes_))
