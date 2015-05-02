@@ -224,6 +224,7 @@ class MergePlan(object):
         self.y_validate = y_validate
         self.scaler = scaler
         self.encoder = LabelEncoder()
+        self.pool = Pool()
 
     def train_validate_test(self):
 
@@ -236,8 +237,14 @@ class MergePlan(object):
                            self.X_train, self.X_validate,
                            self.y_train, self.y_validate)
 
-        self.model_svm.train_validate_test()
-        self.model_rf.train_validate_test()
+        process_svm = self.pool.apply_async(trigger_model, args=(self.model_svm, ))
+        process_rf = self.pool.apply_async(trigger_model, args=(self.model_rf, ))
+
+        self.pool.close()
+        self.pool.join()
+
+        self.model_svm = process_svm.get()
+        self.model_rf = process_rf.get()
 
         self.y_proba_train = np.mean([self.model_svm.y_proba_train, self.model_rf.y_proba_train], axis=0)
         self.y_proba_validate = np.mean([self.model_svm.y_proba_validate, self.model_rf.y_proba_validate], axis=0)
@@ -301,6 +308,11 @@ class MergePlan(object):
         self.X_test = X_test.astype(float)
         self.id_test = id_test.astype(str)
         print "training data loaded."
+
+def trigger_model(model):
+
+    model.train_validate_test()
+    return model
 
 def load_train_data(train_size=0.8):
 
