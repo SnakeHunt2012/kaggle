@@ -7,7 +7,10 @@ import json
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
+from itertools import product
+from threading import Thread
 from multiprocessing import Pool
+from sklearn.grid_search import ParameterGrid
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
@@ -212,7 +215,7 @@ class RF(object):
         print "training data loaded."
 
 
-class MergePlan(object):
+class Merge(Thread):
 
     def __init__(self, param_svm, param_rf, X_train, X_validate, y_train, y_validate, scaler):
 
@@ -225,6 +228,11 @@ class MergePlan(object):
         self.scaler = scaler
         self.encoder = LabelEncoder()
         self.pool = Pool()
+        super(Merge, self).__init__()
+
+    def run(self):
+
+        self.train_validate_test()
 
     def train_validate_test(self):
 
@@ -314,6 +322,11 @@ def trigger_model(model):
     model.train_validate_test()
     return model
 
+def trigger_plan(plan):
+
+    plan.train_validate_test()
+    return plan
+
 def load_train_data(train_size=0.8):
 
     print "loading training data ..."
@@ -334,42 +347,90 @@ def load_train_data(train_size=0.8):
 
 def develop():
 
-    param_svm = OrderedDict()
-    param_svm["C"] = 1.0
-    param_svm["kernel"] = "rbf"
-    param_svm["degree"] = 3
-    param_svm["gamma"] = 0.005
-    param_svm["coef0"] = 0.0
-    param_svm["probability"] = True
-    param_svm["shrinking"] = True
-    param_svm["tol"] = 1e-10
-    param_svm["cache_size"] = 1024
-    param_svm["class_weight"] = "auto"
-    param_svm["verbose"] = 1
-    param_svm["max_iter"] = 2
-    param_svm["random_state"] = None
+    svm_grid = [
+        {
+            "C"            : [1.0, 2.0],
+            "kernel"       : ["rbf"],
+            "degree"       : [3],
+            "gamma"        : [0.01, 0.008],
+            "coef0"        : [0.0],
+            "probability"  : [True],
+            "shrinking"    : [True],
+            "tol"          : [1e-10],
+            "cache_size"   : [1024],
+            "class_weight" : ["auto"],
+            "verbose"      : [1],
+            "max_iter"     : [-1],
+            "random_state" : [None]
+        },
+        {
+            "C"            : [0.6, 0.8],
+            "kernel"       : ["rbf"],
+            "degree"       : [3],
+            "gamma"        : [0.008, 0.001],
+            "coef0"        : [0.0],
+            "probability"  : [True],
+            "shrinking"    : [True],
+            "tol"          : [1e-10],
+            "cache_size"   : [1024],
+            "class_weight" : ["auto"],
+            "verbose"      : [1],
+            "max_iter"     : [-1],
+            "random_state" : [None]
+        }
+    ]
 
-    param_rf = OrderedDict()
-    param_rf["n_estimators"] = 200
-    param_rf["criterion"] = "gini"
-    param_rf["max_depth"] = None
-    param_rf["max_features"] = "log2"
-    param_rf["min_samples_split"] = 30
-    param_rf["min_samples_leaf"] = 20
-    param_rf["min_weight_fraction_leaf"] = 0.0
-    param_rf["max_leaf_nodes"] = None
-    param_rf["bootstrap"] = True
-    param_rf["oob_score"] = True
-    param_rf["n_jobs"] = -1
-    param_rf["random_state"] = None
-    param_rf["verbose"] = 0
-                    
+    rf_grid = [
+        {
+            "n_estimators"      : [200],
+            "criterion"         : ["entropy"],
+            "max_features"      : ["log2"],
+            "max_depth"         : [35],
+            "min_samples_split" : [10],
+            "min_samples_leaf"  : [20],
+            "max_leaf_nodes"    : [None],
+            "bootstrap"         : [True], 
+            "oob_score"         : [True],
+            "n_jobs"            : [-1],
+            "random_state"      : [None], 
+            "verbose"           : [0]
+        },
+        {
+            "n_estimators"      : [200],
+            "criterion"         : ["entropy"],
+            "max_features"      : ["log2"],
+            "max_depth"         : [None],
+            "min_samples_split" : [10],
+            "min_samples_leaf"  : [20],
+            "min_weight_fraction_leaf" : [0.0],
+            "max_leaf_nodes"    : [None],
+            "bootstrap"         : [True], 
+            "oob_score"         : [True],
+            "n_jobs"            : [-1],
+            "random_state"      : [None], 
+            "verbose"           : [0]
+        }
+    ]
+
+    svm_list = list(ParameterGrid(svm_grid))
+    rf_list = list(ParameterGrid(rf_grid))
+
     print "loading training data ..."
     X_train, X_validate, y_train, y_validate, scaler = load_train_data()
     print "training data loaded."
 
-    merge_plan = MergePlan(param_svm, param_rf, X_train, X_validate, y_train, y_validate, scaler)
-    merge_plan.train_validate_test()
+    merge_list = []
+    for param_svm, param_rf in product(svm_list, rf_list):
+        merge_list.append(Merge(param_svm, param_rf,
+                                X_train, X_validate,
+                                y_train, y_validate,
+                                scaler))
+
+    for merge in merge_list:
+        merge.start()
+
+    for merge in merge_list:
+        merge.join()    
 
 def main():
 
