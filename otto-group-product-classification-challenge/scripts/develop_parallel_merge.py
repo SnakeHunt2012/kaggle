@@ -4,6 +4,7 @@
 import os
 import time
 import json
+import thread
 import numpy as np
 import pandas as pd
 from collections import OrderedDict
@@ -20,7 +21,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cross_validation import train_test_split
 
 
-class SVM(object):
+class SVMModel(object):
 
     def __init__(self, param, X_train, X_validate, y_train, y_validate, scaler):
         
@@ -82,7 +83,7 @@ class SVM(object):
         print "tested."
         
         timestamp = time.strftime("[%Y-%m-%d]_[%H-%M-%S]", time.localtime(time.time()))
-        timestamp += "_[%d]" % os.getpid()
+        timestamp += "_[%d]_[%d]" % (os.getpid(), thread.get_ident())
 
         print "dumping meta ..."
         path = "../data/submission_svm_%s.json" % timestamp
@@ -118,7 +119,7 @@ class SVM(object):
         self.id_test = id_test.astype(str)
         print "training data loaded."
 
-class RF(object):
+class RFModel(object):
 
     def __init__(self, param, X_train, X_validate, y_train, y_validate):
         
@@ -178,7 +179,7 @@ class RF(object):
         print "tested."
 
         timestamp = time.strftime("[%Y-%m-%d]_[%H-%M-%S]", time.localtime(time.time()))
-        timestamp += "_[%d]" % os.getpid()
+        timestamp += "_[%d]_[%d]" % (os.getpid(), thread.get_ident())
 
         print "dumping meta ..."
         path = "../data/submission_rf_%s.json" % timestamp
@@ -214,54 +215,134 @@ class RF(object):
         self.id_test = id_test.astype(str)
         print "training data loaded."
 
+class SVMPool(Thread):
 
-class Merge(Thread):
+    def __init__(self, param_list, X_train, X_validate, y_train, y_validate, scaler):
 
-    def __init__(self, param_svm, param_rf, X_train, X_validate, y_train, y_validate, scaler):
-
-        self.param_rf = param_rf
-        self.param_svm = param_svm
+        self.param_list = param_list
         self.X_train = X_train
         self.X_validate = X_validate
         self.y_train = y_train
         self.y_validate = y_validate
         self.scaler = scaler
-        self.encoder = LabelEncoder()
         self.pool = Pool()
-        super(Merge, self).__init__()
+        self.model_list = []
+        self.process_list = []
+        super(SVMPool, self).__init__()
 
     def run(self):
 
         self.train_validate_test()
 
+        # check
+        assert len(self.param_list) == len(self.model_list)
+        for param in self.param_list:
+            assert self.fetch_model(param) is not None
+        
     def train_validate_test(self):
 
-        self.model_svm = SVM(self.param_svm,
+        for param in self.param_list:
+            model = SVMModel(param,
                              self.X_train, self.X_validate,
                              self.y_train, self.y_validate,
                              self.scaler)
-        
-        self.model_rf = RF(self.param_rf,
-                           self.X_train, self.X_validate,
-                           self.y_train, self.y_validate)
-
-        process_svm = self.pool.apply_async(trigger_model, args=(self.model_svm, ))
-        process_rf = self.pool.apply_async(trigger_model, args=(self.model_rf, ))
+            self.model_list.append(model)
+            
+        for model in self.model_list:
+            process = self.pool.apply_async(trigger_model, args=(model, ))
+            self.process_list.append(process)
 
         self.pool.close()
         self.pool.join()
 
-        self.model_svm = process_svm.get()
-        self.model_rf = process_rf.get()
+        self.model_list = []
+        for process in self.process_list:
+            self.model_list.append(process.get())
 
-        self.y_proba_train = np.mean([self.model_svm.y_proba_train, self.model_rf.y_proba_train], axis=0)
-        self.y_proba_validate = np.mean([self.model_svm.y_proba_validate, self.model_rf.y_proba_validate], axis=0)
+    def fetch_model(self, param):
+
+        for model in self.model_list:
+            if model.param == param:
+                return model
+        return None
+    
+class RFPool(Thread):
+
+    def __init__(self, param_list, X_train, X_validate, y_train, y_validate):
+
+        self.param_list = param_list
+        self.X_train = X_train
+        self.X_validate = X_validate
+        self.y_train = y_train
+        self.y_validate = y_validate
+        self.pool = Pool()
+        self.model_list = []
+        self.process_list = []
+        super(RFPool, self).__init__()
+
+    def run(self):
+
+        self.train_validate_test()
+        
+        # check
+        assert len(self.param_list) == len(self.model_list)
+        for param in self.param_list:
+            assert self.fetch_model(param) is not None
+        
+        
+    def train_validate_test(self):
+
+        for param in self.param_list:
+            model = RFModel(param,
+                            self.X_train, self.X_validate,
+                            self.y_train, self.y_validate)
+            self.model_list.append(model)
+            
+        for model in self.model_list:
+            process = self.pool.apply_async(trigger_model, args=(model, ))
+            self.process_list.append(process)
+
+        self.pool.close()
+        self.pool.join()
+
+        self.model_list = []
+        for process in self.process_list:
+            self.model_list.append(process.get())
+
+    def fetch_model(self, param):
+
+        for model in self.model_list:
+            if model.param == param:
+                return model
+        return None
+    
+class Merge(Thread):
+
+    def __init__(self, svm_model, rf_model, y_train, y_validate):
+
+        self.svm_model = svm_model
+        self.rf_model = rf_model
+        self.svm_param = self.svm_model.param
+        self.rf_param = self.rf_model.param
+        self.y_train = y_train
+        self.y_validate = y_validate
+        self.encoder = LabelEncoder()
+        self.meta = OrderedDict()
+        super(Merge, self).__init__()
+
+    def run(self):
+
+        self.merge()
+
+    def merge(self):
+
+        self.y_proba_train = np.mean([self.svm_model.y_proba_train, self.rf_model.y_proba_train], axis=0)
+        self.y_proba_validate = np.mean([self.svm_model.y_proba_validate, self.rf_model.y_proba_validate], axis=0)
         self.y_pred_train = np.argmax(self.y_proba_train, axis=1)
         self.y_pred_validate = np.argmax(self.y_proba_validate, axis=1)
 
-        self.meta = OrderedDict()
-        self.meta["svm"] = self.model_svm.meta
-        self.meta["rf"] = self.model_rf.meta
+        self.meta["svm"] = self.svm_model.meta
+        self.meta["rf"] = self.rf_model.meta
         self.meta["acc_train"] = accuracy_score(self.encoder.fit_transform(self.y_train), self.y_pred_train)
         self.meta["acc_validate"] = accuracy_score(self.encoder.fit_transform(self.y_validate), self.y_pred_validate)
         self.meta["logloss_train"] = log_loss(self.encoder.fit_transform(self.y_train), self.y_proba_train)
@@ -276,12 +357,12 @@ class Merge(Thread):
         print "testing data loaded."
 
         print "testing ..."
-        self.y_proba_test = np.mean([self.model_svm.y_proba_test, self.model_rf.y_proba_test], axis=0)
+        self.y_proba_test = np.mean([self.svm_model.y_proba_test, self.rf_model.y_proba_test], axis=0)
         self.y_pred_test = np.argmax(self.y_proba_test, axis=1)
         print "tested."
         
         timestamp = time.strftime("[%Y-%m-%d]_[%H-%M-%S]", time.localtime(time.time()))
-        timestamp += "_[%d]" % os.getpid()
+        timestamp += "_[%d]_[%d]" % (os.getpid(), thread.get_ident())
 
         print "dumping meta ..."
         path = "../data/submission_merge_%s.json" % timestamp
@@ -301,11 +382,6 @@ class Merge(Thread):
                 fp.write("\n")
         print "submission file dumped."
 
-    def _load_train_data(self):
-
-        self.X_train = self.X_train.astype(float)
-        self.X_validate = self.X_validate.astype(float)
-
     def _load_test_data(self):
 
         print "loading training data ..."
@@ -321,11 +397,6 @@ def trigger_model(model):
 
     model.train_validate_test()
     return model
-
-def trigger_plan(plan):
-
-    plan.train_validate_test()
-    return plan
 
 def load_train_data(train_size=0.8):
 
@@ -388,6 +459,7 @@ def develop():
             "max_depth"         : [35],
             "min_samples_split" : [10],
             "min_samples_leaf"  : [20],
+            "min_weight_fraction_leaf" : [0.0],
             "max_leaf_nodes"    : [None],
             "bootstrap"         : [True], 
             "oob_score"         : [True],
@@ -419,16 +491,25 @@ def develop():
     X_train, X_validate, y_train, y_validate, scaler = load_train_data()
     print "training data loaded."
 
+    svm_pool = SVMPool(svm_list, X_train, X_validate, y_train, y_validate, scaler)
+    rf_pool = RFPool(rf_list, X_train, X_validate, y_train, y_validate)
+
+    svm_pool.start()
+    rf_pool.start()
+
+    svm_pool.join()
+    rf_pool.join()
+
     merge_list = []
-    for param_svm, param_rf in product(svm_list, rf_list):
-        merge_list.append(Merge(param_svm, param_rf,
-                                X_train, X_validate,
-                                y_train, y_validate,
-                                scaler))
+    for svm_param, rf_param in product(svm_list, rf_list):
+        svm_model = svm_pool.fetch_model(svm_param)
+        rf_model = rf_pool.fetch_model(rf_param)
+        merge_list.append(Merge(svm_model, rf_model,
+                                y_train, y_validate))
 
     for merge in merge_list:
         merge.start()
-
+    
     for merge in merge_list:
         merge.join()    
 
